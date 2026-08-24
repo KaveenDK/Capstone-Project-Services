@@ -1,3 +1,6 @@
 
 # GCP Key
 gcp-key.json
+gcp-key.json
+.env
+.env.local
