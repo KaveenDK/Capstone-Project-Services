@@ -123,22 +123,40 @@ public class StudentServiceImpl implements StudentService {
                 .orElseThrow(() -> new StudentNotFoundException(nic));
         try {
             String url = student.getPicture();
-            if(url == null || !url.contains("storage.googleapis.com")) return new byte[0];
-            String blobName = url.substring(url.lastIndexOf('/') + 1);
+            if(url == null) return new byte[0];
             
-            String keyPath = "gcp-key.json";
-            java.io.File keyFile = new java.io.File(keyPath);
-            if (!keyFile.exists()) {
-                keyPath = "../../../../gcp-key.json";
+            if (url.contains("storage.googleapis.com")) {
+                String blobName = url.substring(url.lastIndexOf('/') + 1);
+                String keyPath = "gcp-key.json";
+                java.io.File keyFile = new java.io.File(keyPath);
+                if (!keyFile.exists()) {
+                    keyPath = "../../../../gcp-key.json";
+                }
+                Storage storage = StorageOptions.newBuilder()
+                        .setCredentials(GoogleCredentials.fromStream(new FileInputStream(keyPath)))
+                        .build()
+                        .getService();
+                BlobId blobId = BlobId.of("kdk-capstone-storage", blobName);
+                return storage.readAllBytes(blobId);
+            } else {
+                // Legacy local files (e.g., profile.png)
+                java.io.File[] possiblePaths = {
+                    new java.io.File("/home/dtkaviya1002/uploads/" + url),
+                    new java.io.File("uploads/" + url),
+                    new java.io.File(url)
+                };
+                for (java.io.File file : possiblePaths) {
+                    if (file.exists()) {
+                        try (FileInputStream fis = new FileInputStream(file)) {
+                            return fis.readAllBytes();
+                        }
+                    }
+                }
+                log.warn("Local picture file not found for: {}", url);
+                return new byte[0];
             }
-            Storage storage = StorageOptions.newBuilder()
-                    .setCredentials(GoogleCredentials.fromStream(new FileInputStream(keyPath)))
-                    .build()
-                    .getService();
-            BlobId blobId = BlobId.of("kdk-capstone-storage", blobName);
-            return storage.readAllBytes(blobId);
         } catch (Exception e) {
-            log.error("Failed to read picture from GCP", e);
+            log.error("Failed to read picture", e);
             throw new FileOperationException("Failed to read picture", e);
         }
     }
